@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A1315">
+<meta name="color-scheme" content="dark light">
+<title>DiagPhone</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Concept : tableau de bord d'atelier de réparation. Un cadran à graduations donne le score de santé,
+   chaque composant est une ligne de contrôle avec son voyant. Accent orange "signal" sur fond vert-noir. */
+:root{
+  --bg:#0A1315; --panel:#101D20; --panel2:#17292D; --line:#23393E;
+  --fg:#E7F0F1; --muted:#8CA5AA; --accent:#FF8B3D; --accent-ink:#1A0C03;
+  --good:#46D68C; --warn:#F5C542; --bad:#FF6464; --info:#5CC8FF;
+  --display:'Bricolage Grotesque',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#EEF3F3; --panel:#FFFFFF; --panel2:#E4ECEC; --line:#CCD9DA;
+    --fg:#0F2124; --muted:#587076; --accent:#D9500A; --accent-ink:#FFFFFF;
+    --good:#12834B; --warn:#8F6200; --bad:#C62828; --info:#0A6FA8; color-scheme:light;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#EEF3F3; --panel:#FFFFFF; --panel2:#E4ECEC; --line:#CCD9DA;
+  --fg:#0F2124; --muted:#587076; --accent:#D9500A; --accent-ink:#FFFFFF;
+  --good:#12834B; --warn:#8F6200; --bad:#C62828; --info:#0A6FA8; color-scheme:light;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);min-height:100vh;
+  padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+h1,h2,h3,h4{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em;line-height:1.15}
+p{margin:0}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono)}
+.center{text-align:center}
+
+/* header */
+.top{position:sticky;top:0;z-index:20;padding-top:env(safe-area-inset-top,0px);
+  background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:12px;height:56px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:800;font-size:19px;letter-spacing:-.02em}
+.brand svg{width:28px;height:28px;color:var(--accent)}
+.spacer{flex:1}
+.icon-btn{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:var(--muted);border:1px solid var(--line);background:var(--panel)}
+.icon-btn svg{width:20px;height:20px}
+
+/* nav */
+.nav{position:fixed;inset:auto 0 0 0;z-index:20;background:var(--panel);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom,0px)}
+.nav .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding-block:6px}
+.nav button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;color:var(--muted);font-size:12px;font-weight:500}
+.nav button svg{width:22px;height:22px}
+.nav button[aria-current="page"]{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+
+/* generic blocks */
+main{padding-block:18px 8px;display:flex;flex-direction:column;gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px}
+.sect{display:flex;flex-direction:column;gap:10px}
+.sect>h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-family:var(--body);font-weight:600}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:14px;
+  font-weight:600;border:1px solid var(--line);background:var(--panel2)}
+.btn svg{width:20px;height:20px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.good{background:color-mix(in srgb,var(--good) 18%,var(--panel));border-color:color-mix(in srgb,var(--good) 55%,transparent);color:var(--good)}
+.btn.bad{background:color-mix(in srgb,var(--bad) 14%,var(--panel));border-color:color-mix(in srgb,var(--bad) 50%,transparent);color:var(--bad)}
+.btn.ghost{background:transparent}
+.btn.small{min-height:40px;padding:0 14px;font-size:14px;border-radius:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px}
+.btn-row>.btn{flex:1 1 140px}
+
+/* hero */
+.hero{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+.gauge{position:relative;width:176px;height:176px;flex:none}
+.gauge svg{width:100%;height:100%;display:block}
+.gauge .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
+.gauge .num{font-family:var(--display);font-weight:800;font-size:46px;line-height:1;font-variant-numeric:tabular-nums}
+.gauge .lab{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.hero h1{font-size:25px}
+.hero .meta{display:flex;flex-direction:column;gap:10px;min-width:0}
+.hero .meta p{color:var(--muted);font-size:14px}
+@media (max-width:480px){.hero{grid-template-columns:1fr;justify-items:center;text-align:center}.hero .btn-row{justify-content:center;width:100%}}
+
+.banner{display:flex;gap:12px;padding:14px 16px;border-radius:14px;border:1px solid color-mix(in srgb,var(--warn) 50%,transparent);
+  background:color-mix(in srgb,var(--warn) 10%,var(--panel));font-size:14px}
+.banner b{color:var(--warn)}
+.banner svg{width:22px;height:22px;flex:none;color:var(--warn)}
+
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:10px;text-align:left;padding:14px;border-radius:16px;background:var(--panel);border:1px solid var(--line);min-width:0}
+.tile svg{width:26px;height:26px;color:var(--accent)}
+.tile b{font-family:var(--display);font-size:16px}
+.tile small{color:var(--muted)}
+.dots{display:flex;gap:5px;flex-wrap:wrap}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--line)}
+.dot.pass{background:var(--good)}.dot.warn{background:var(--warn)}.dot.fail{background:var(--bad)}.dot.skip{background:var(--muted);opacity:.5}
+
+/* list rows */
+.rows{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--panel)}
+.row{display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;padding:13px 14px;text-align:left;width:100%;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .ic{width:40px;height:40px;border-radius:12px;background:var(--panel2);display:grid;place-items:center;color:var(--accent)}
+.row .ic svg{width:22px;height:22px}
+.row .tx{min-width:0}
+.row .tx b{display:block;font-weight:600}
+.row .tx span{display:block;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.pass{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent)}
+.pill.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.pill.fail{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chipbtn{flex:none;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--panel);font-size:13px;font-weight:500;color:var(--muted)}
+.chipbtn[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+
+/* key-value */
+.kv{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
+.kv>div{display:grid;grid-template-columns:minmax(0,40%) minmax(0,1fr);gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px}
+.kv>div:last-child{border-bottom:0}
+.kv dt,.kv .k{color:var(--muted)}
+.kv .v{font-family:var(--mono);font-size:13px;overflow-wrap:anywhere;text-align:right}
+.kv .v.pass{color:var(--good)}.kv .v.warn{color:var(--warn)}.kv .v.fail{color:var(--bad)}
+
+/* runner */
+#runner{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}
+#runner[hidden]{display:none}
+.r-head{display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px}
+.r-title{min-width:0}
+.r-title small{display:block;color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.r-title h2{font-size:21px}
+.r-prog{height:3px;background:var(--line)}
+.r-prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.r-body{flex:1;overflow:auto;padding:16px;max-width:720px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.r-foot{display:flex;gap:10px;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--panel);max-width:none}
+.r-foot .btn{flex:1}
+.hint{color:var(--muted);font-size:14px}
+.sub{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-family:var(--body);font-weight:600}
+.note{padding:12px 14px;border-radius:12px;font-size:14px;background:var(--panel);border:1px solid var(--line)}
+.note.warn{border-color:color-mix(in srgb,var(--warn) 55%,transparent);color:var(--fg);background:color-mix(in srgb,var(--warn) 9%,var(--panel))}
+.note.bad{border-color:color-mix(in srgb,var(--bad) 55%,transparent);background:color-mix(in srgb,var(--bad) 9%,var(--panel))}
+.note.good{border-color:color-mix(in srgb,var(--good) 55%,transparent);background:color-mix(in srgb,var(--good) 9%,var(--panel))}
+.verdict{display:flex;gap:12px;align-items:flex-start;padding:16px;border-radius:16px;border:1px solid var(--line);background:var(--panel)}
+.verdict b{font-family:var(--display);font-size:18px;display:block}
+.verdict.pass{border-color:var(--good)}.verdict.pass b{color:var(--good)}
+.verdict.warn{border-color:var(--warn)}.verdict.warn b{color:var(--warn)}
+.verdict.fail{border-color:var(--bad)}.verdict.fail b{color:var(--bad)}
+.verdict.skip b{color:var(--muted)}
+.big-num{font-family:var(--display);font-weight:800;font-size:64px;line-height:1;font-variant-numeric:tabular-nums}
+.meter{height:12px;border-radius:99px;background:var(--panel2);overflow:hidden;margin:14px 0 10px}
+.meter i{display:block;height:100%;width:0;background:var(--good);transition:width .4s,background .4s;border-radius:99px}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.cover{position:fixed;inset:0;z-index:70;display:flex;align-items:flex-end;justify-content:center;padding:24px;font-family:var(--mono);font-size:13px;user-select:none;touch-action:manipulation}
+.cover span{mix-blend-mode:difference;color:#fff}
+.grid-touch{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;touch-action:none;user-select:none;aspect-ratio:6/10;max-height:62vh;margin-inline:auto;width:100%;max-width:380px}
+.grid-touch i{background:var(--panel2);border-radius:4px;transition:background .1s}
+.grid-touch i.on{background:var(--accent)}
+.pad{position:relative;touch-action:none;user-select:none;height:min(52vh,420px);border-radius:18px;border:1px dashed var(--line);background:var(--panel);overflow:hidden}
+.pad .t{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;background:color-mix(in srgb,var(--accent) 35%,transparent);border:2px solid var(--accent);display:grid;place-items:center;font-family:var(--mono);font-weight:500;pointer-events:none}
+.pad .ph{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);text-align:center;padding:20px;pointer-events:none}
+canvas.vis{width:100%;height:140px;border-radius:14px;background:var(--panel);border:1px solid var(--line);display:block}
+video.cam{width:100%;max-height:48vh;background:#000;border-radius:16px;object-fit:contain}
+.chipset{display:flex;flex-wrap:wrap;gap:8px}
+.level{position:relative;width:132px;height:132px;border-radius:50%;border:2px solid var(--line);background:var(--panel);flex:none}
+.level::before,.level::after{content:"";position:absolute;background:var(--line)}
+.level::before{left:50%;top:8px;bottom:8px;width:1px}.level::after{top:50%;left:8px;right:8px;height:1px}
+.level .bubble{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:var(--accent);left:50%;top:50%}
+.compass{position:relative;width:132px;height:132px;border-radius:50%;border:2px solid var(--line);background:var(--panel);flex:none}
+.compass .nd{position:absolute;left:50%;top:50%;width:4px;height:52px;margin:-52px 0 0 -2px;background:linear-gradient(var(--bad) 50%,var(--muted) 50%);transform-origin:50% 100%;border-radius:2px}
+.compass b{position:absolute;left:50%;top:6px;transform:translateX(-50%);font-size:11px;color:var(--muted)}
+.dials{display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap}
+.spark{width:100%;height:64px;display:block}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:90;background:var(--fg);color:var(--bg);
+  padding:10px 16px;border-radius:12px;font-size:14px;font-weight:500;max-width:90vw}
+.toast[hidden]{display:none}
+.codes{display:flex;flex-direction:column;gap:8px}
+.code{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--panel)}
+.code code{font-family:var(--mono);font-size:15px;color:var(--accent)}
+.code span{display:block;color:var(--muted);font-size:13px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.sheet-title{display:none}
+@media print{
+  .top,.nav,.btn,.btn-row,#runner,.toast,.noprint{display:none!important}
+  body{background:#fff;color:#000;padding:0}
+  .card,.rows,.kv{border-color:#bbb;background:#fff}
+  .sheet-title{display:block;font-size:22px;margin-bottom:8px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2.5" width="16" height="27" rx="4"/><path d="M12 17h2.5l1.5-4 2.5 8 1.5-4H21"/></svg>
+    DiagPhone
+  </div>
+  <div class="spacer"></div>
+  <button class="icon-btn" id="themeBtn" aria-label="Changer le thème" data-act="theme"></button>
+</div></header>
+
+<div class="wrap"><main id="view"></main></div>
+
+<nav class="nav" aria-label="Navigation principale"><div class="wrap" id="nav"></div></nav>
+
+<div id="runner" hidden role="dialog" aria-modal="true" aria-labelledby="r-name">
+  <div class="r-head">
+    <button class="icon-btn" id="r-back" aria-label="Quitter le test"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="r-title"><small id="r-step"></small><h2 id="r-name"></h2></div>
+  </div>
+  <div class="r-prog"><i id="r-bar"></i></div>
+  <div id="rbody" class="r-body"></div>
+  <div id="rfoot" class="r-foot"></div>
+</div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+'use strict';
+/* ---------- utilitaires ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) { if (c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(c)); }
+  return e;
+}
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('diagphone.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('diagphone.' + k, JSON.stringify(v)); } catch (e) {} }
+};
+const secure = window.isSecureContext;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const median = a => { const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length ? (s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) : 0; };
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2400); }
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); toast('Copié'); return; } catch (e) {}
+  const ta = h('textarea', { style: 'position:fixed;opacity:0' }); ta.value = text; document.body.append(ta); ta.select();
+  try { document.execCommand('copy'); toast('Copié'); } catch (e) { toast('Copie impossible'); } ta.remove();
+}
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  const a = h('a', { href: url, download: name }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+const ICONS = {
+  battery: '<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2M6 10v4M10 10v4"/>',
+  screen: '<rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M10.5 18.5h3"/>',
+  touch: '<circle cx="12" cy="12" r="3"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',
+  multitouch: '<circle cx="7.5" cy="8" r="2.5"/><circle cx="16.5" cy="8" r="2.5"/><circle cx="12" cy="16.5" r="2.5"/>',
+  speaker: '<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 9a4 4 0 010 6M19 6.5a8 8 0 010 11"/>',
+  mic: '<rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/>',
+  camera: '<path d="M3.5 7.5h3l1.8-3h7.4l1.8 3h3v12h-17z"/><circle cx="12" cy="13.5" r="3.8"/>',
+  vibrate: '<rect x="8" y="3" width="8" height="18" rx="2"/><path d="M4.5 8v8M19.5 8v8M1.5 10.5v3M22.5 10.5v3"/>',
+  sensors: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+  gps: '<path d="M12 21.5s7-6.2 7-11.5a7 7 0 10-14 0c0 5.3 7 11.5 7 11.5z"/><circle cx="12" cy="10" r="2.5"/>',
+  network: '<path d="M2 9a15 15 0 0120 0M5 12.5a10.5 10.5 0 0114 0M8.5 16a5 5 0 017 0"/><circle cx="12" cy="19.5" r=".8"/>',
+  connect: '<path d="M7 7.5l10 9-5 5v-19l5 5-10 9"/>',
+  bio: '<path d="M12 3.5a7 7 0 00-7 7V13M12 7.5a3 3 0 00-3 3V16M12 11v7M16 10.5V14a8 8 0 01-1.5 4.7M19 11.5v1"/>',
+  perf: '<path d="M4 20v-7M10 20V5M16 20v-10M22 20H2"/>',
+  storage: '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+  home: '<path d="M3.5 11L12 4l8.5 7v9h-5.5v-6h-6v6H3.5z"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+  report: '<path d="M6 3h9l4 4v14H6z"/><path d="M14.5 3v5H19M9 13h7M9 17h7"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',
+  warn: '<path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.5v.01"/>',
+  play: '<path d="M7 4.5v15l12-7.5z"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16.5 9.5"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z"/>',
+  auto: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path d="M12 3a9 9 0 010 18z" fill="currentColor"/>'
+};
+const icon = n => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[n] || '') + '</svg>';
+
+/* ---------- état ---------- */
+const STATUS = { pass: 'Réussi', warn: 'Attention', fail: 'Défaillant', skip: 'Non testé' };
+let results = store.get('results', {});
+let view = 'home', filterCat = 'all', info = null, deferredInstall = null;
+const CATS = [
+  { id: 'ecran', name: 'Écran & toucher' }, { id: 'audio', name: 'Audio & vibration' }, { id: 'camera', name: 'Caméra' },
+  { id: 'energie', name: 'Énergie' }, { id: 'capteurs', name: 'Capteurs & position' },
+  { id: 'reseau', name: 'Connectivité' }, { id: 'perf', name: 'Performance & stockage' }
+];
+const VAL = { pass: 1, warn: 0.6, fail: 0 };
+const GRADES = [
+  { min: 90, label: 'Excellent', cls: 'good' }, { min: 75, label: 'Bon état', cls: 'good' },
+  { min: 55, label: 'À surveiller', cls: 'warn' }, { min: 0, label: 'Défauts importants', cls: 'bad' }
+];
+function summary() {
+  let num = 0, den = 0, done = 0, hardFail = false;
+  for (const t of TESTS) {
+    const r = results[t.id]; if (!r || r.status === 'skip') continue;
+    done++; num += t.w * VAL[r.status]; den += t.w;
+    if (r.status === 'fail' && t.w >= 10) hardFail = true;
+  }
+  let score = den ? Math.round(num / den * 100) : null, capped = false;
+  if (score !== null && hardFail && score > 74) { score = 74; capped = true; }
+  const grade = score === null ? null : GRADES.find(g => score >= g.min);
+  return { score, done, tot: TESTS.length, grade, capped };
+}
+const colorOf = cls => cls === 'good' ? 'var(--good)' : cls === 'warn' ? 'var(--warn)' : cls === 'bad' ? 'var(--bad)' : 'var(--muted)';
+function gauge(score, grade, size) {
+  const n = 60, lit = score === null ? -1 : Math.round(score / 100 * (n - 1));
+  const col = grade ? colorOf(grade.cls) : 'var(--line)';
+  let ticks = '';
+  for (let i = 0; i < n; i++) {
+    const a = (135 + i * 270 / (n - 1)) * Math.PI / 180, major = i % 10 === 0;
+    const r1 = major ? 80 : 86, r2 = 98;
+    ticks += `<line x1="${(110 + r1 * Math.cos(a)).toFixed(1)}" y1="${(110 + r1 * Math.sin(a)).toFixed(1)}" x2="${(110 + r2 * Math.cos(a)).toFixed(1)}" y2="${(110 + r2 * Math.sin(a)).toFixed(1)}" stroke="${i <= lit ? col : 'var(--line)'}" stroke-width="${major ? 3.2 : 2.4}" stroke-linecap="round"/>`;
+  }
+  return `<div class="gauge" style="${size ? 'width:' + size + 'px;height:' + size + 'px' : ''}"><svg viewBox="0 0 220 220" aria-hidden="true">${ticks}</svg>
+    <div class="mid"><span class="num" style="color:${score === null ? 'var(--muted)' : col}">${score === null ? '—' : score}</span><span class="lab">${score === null ? 'à mesurer' : 'sur 100'}</span></div></div>`;
+}
+
+/* ---------- tests : widgets communs ---------- */
+function note(kind, text) { return h('div', { class: 'note ' + (kind || '') }, text); }
+function kvBox(rows) {
+  return h('div', { class: 'kv' }, rows.map(([k, v, s]) => h('div', {}, h('span', { class: 'k' }, k), h('span', { class: 'v ' + (s || '') }, v))));
+}
+function chipStatus(label) {
+  const el = h('span', { class: 'pill' }, label + ' · en attente');
+  return { el, set(st, txt) { el.className = 'pill ' + (st === 'skip' ? '' : st); el.textContent = label + ' · ' + txt; el.dataset.st = st; } };
+}
+function waitFor(cond, ms) { return new Promise(res => { const t0 = Date.now(); const i = setInterval(() => { if (cond() || Date.now() - t0 > ms) { clearInterval(i); res(cond()); } }, 100); }); }
+
+/* ---------- les tests ---------- */
+async function tBattery(c) {
+  const b = c.body;
+  if (!navigator.getBattery) { b.append(note('warn', 'L’API Batterie est absente de ce navigateur. Utilisez Chrome sur Android, en HTTPS ou sur localhost.')); c.verdict('skip', 'API batterie indisponible'); return; }
+  let bat; try { bat = await navigator.getBattery(); } catch (e) { b.append(note('warn', 'Accès à la batterie refusé : ' + e.message)); c.verdict('skip', 'Accès batterie refusé'); return; }
+  const lvl = h('div', { class: 'big-num' }), state = h('div', { class: 'muted' });
+  const bar = h('div', { class: 'meter' }, h('i')), times = h('div'), log = h('ul', { class: 'log' });
+  b.append(h('div', { class: 'card center' }, lvl, bar, state), times, h('h3', { class: 'sub' }, 'Journal de charge'), log);
+  let sawOn = bat.charging, sawOff = !bat.charging;
+  const fmtT = s => (!isFinite(s) || s === 0) ? 'inconnu' : Math.floor(s / 3600) + ' h ' + String(Math.floor(s % 3600 / 60)).padStart(2, '0') + ' min';
+  const addLog = t => log.prepend(h('li', {}, new Date().toLocaleTimeString('fr-FR') + ' · ' + t));
+  function paint() {
+    const p = Math.round(bat.level * 100); lvl.textContent = p + ' %';
+    const fill = $('i', bar); fill.style.width = p + '%'; fill.style.background = p < 15 ? 'var(--bad)' : p < 30 ? 'var(--warn)' : 'var(--good)';
+    state.textContent = bat.charging ? 'En charge' : 'Sur batterie';
+    times.replaceChildren(kvBox([['Temps avant charge complète', bat.charging ? fmtT(bat.chargingTime) : '—'], ['Autonomie estimée', bat.charging ? '—' : fmtT(bat.dischargingTime)]]));
+    c.suggest('Niveau ' + p + ' %, ' + (bat.charging ? 'en charge' : 'sur batterie'), 'Problème de charge ou de batterie signalé');
+  }
+  const evs = ['levelchange', 'chargingchange', 'chargingtimechange', 'dischargingtimechange'];
+  const onChg = () => {
+    addLog(bat.charging ? 'Chargeur branché' : 'Chargeur débranché');
+    if (bat.charging) sawOn = true; else sawOff = true;
+    paint();
+    if (sawOn && sawOff) c.verdict('pass', 'Branchement et débranchement détectés. Niveau ' + Math.round(bat.level * 100) + ' %.');
+  };
+  evs.forEach(e => bat.addEventListener(e, e === 'chargingchange' ? onChg : paint));
+  c.onCleanup(() => evs.forEach(e => bat.removeEventListener(e, e === 'chargingchange' ? onChg : paint)));
+  addLog('Mesure initiale : ' + Math.round(bat.level * 100) + ' %, ' + (bat.charging ? 'en charge' : 'sur batterie'));
+  paint();
+  b.append(note('', 'La capacité réelle (mAh) et l’usure de la batterie ne sont pas lisibles depuis un navigateur. Voir l’onglet Appareil pour les codes de vérification.'));
+}
+
+function tScreen(c) {
+  const b = c.body;
+  const steps = [['#000000', 'Noir'], ['#ffffff', 'Blanc'], ['#ff0000', 'Rouge'], ['#00ff00', 'Vert'], ['#0000ff', 'Bleu'], ['#7f7f7f', 'Gris moyen'], ['linear-gradient(90deg,#000,#fff)', 'Dégradé']];
+  let cover = null, i = 0;
+  const end = () => { if (cover) { cover.remove(); cover = null; } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); c.suggest('Aucun défaut visible sur ' + steps.length + ' écrans de couleur', 'Défaut d’affichage constaté (pixel mort, tache, ligne ou halo)'); status.textContent = 'Test terminé. Avez-vous vu un défaut ?'; };
+  const show = () => { cover.style.background = steps[i][0]; $('span', cover).textContent = steps[i][1] + ' · ' + (i + 1) + '/' + steps.length + ' · touchez pour continuer'; };
+  const status = h('p', { class: 'hint' }, 'Chaque couleur remplit tout l’écran. Cherchez points noirs ou brillants, taches, lignes, bords jaunis ou halos.');
+  b.append(status, h('button', { class: 'btn primary', onclick() {
+    i = 0; cover = h('div', { class: 'cover', onclick() { i++; if (i >= steps.length) end(); else show(); } }, h('span')); document.body.append(cover); show();
+    try { document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch (e) {}
+  } }, 'Démarrer le test plein écran'));
+  c.onCleanup(end);
+  c.suggest('Aucun défaut visible sur ' + steps.length + ' écrans de couleur', 'Défaut d’affichage constaté');
+}
+
+function tTouch(c) {
+  const b = c.body, cols = 6, rows = 10, total = cols * rows, hit = new Set();
+  const grid = h('div', { class: 'grid-touch' }, Array.from({ length: total }, () => h('i')));
+  const count = h('p', { class: 'mono center' }, '0 / ' + total + ' zones');
+  const mark = e => {
+    const r = grid.getBoundingClientRect(); const x = Math.floor((e.clientX - r.left) / r.width * cols), y = Math.floor((e.clientY - r.top) / r.height * rows);
+    if (x < 0 || y < 0 || x >= cols || y >= rows) return;
+    const k = y * cols + x; if (hit.has(k)) return; hit.add(k); grid.children[k].classList.add('on');
+    count.textContent = hit.size + ' / ' + total + ' zones';
+    c.suggest(hit.size + '/' + total + ' zones détectées', 'Zones tactiles insensibles : ' + (total - hit.size));
+    if (hit.size === total) c.verdict('pass', 'Les ' + total + ' zones de l’écran réagissent au toucher.');
+  };
+  grid.addEventListener('pointerdown', mark); grid.addEventListener('pointermove', mark);
+  b.append(h('p', { class: 'hint' }, 'Passez le doigt sur toute la grille, bords et coins compris. Une case orange signifie une zone détectée.'), grid, count);
+  c.suggest('0/' + total + ' zones détectées', 'Zones tactiles insensibles');
+}
+
+function tMulti(c) {
+  const b = c.body, pts = new Map(); let max = 0;
+  const ph = h('div', { class: 'ph' }, 'Posez autant de doigts que possible');
+  const pad = h('div', { class: 'pad' }, ph), out = h('p', { class: 'mono center' }, 'Maximum : 0 points');
+  const upd = () => {
+    max = Math.max(max, pts.size); ph.style.display = pts.size ? 'none' : 'grid';
+    out.textContent = 'Maximum : ' + max + ' point' + (max > 1 ? 's' : '') + ' · en ce moment : ' + pts.size;
+    c.suggest('Multitouch : ' + max + ' points simultanés', 'Le multitouch échoue (' + max + ' point' + (max > 1 ? 's' : '') + ')');
+  };
+  const place = (e, el) => { const r = pad.getBoundingClientRect(); el.style.left = (e.clientX - r.left) + 'px'; el.style.top = (e.clientY - r.top) + 'px'; };
+  pad.addEventListener('pointerdown', e => { const el = h('div', { class: 't' }); pad.append(el); pts.set(e.pointerId, el); place(e, el); upd(); });
+  pad.addEventListener('pointermove', e => { const el = pts.get(e.pointerId); if (el) place(e, el); });
+  const up = e => { const el = pts.get(e.pointerId); if (el) { el.remove(); pts.delete(e.pointerId); upd(); } };
+  pad.addEventListener('pointerup', up); pad.addEventListener('pointercancel', up);
+  b.append(h('p', { class: 'hint' }, 'Un bon écran suit au moins 5 doigts, la plupart en suivent 10. Ajoutez les doigts un par un.'), pad, out);
+  c.suggest('Multitouch : 0 point', 'Le multitouch échoue');
+}
+
+function tSpeaker(c) {
+  const b = c.body; let ac = null, vol = 0.5;
+  const A = () => { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); return ac; };
+  function play(f0, dur, pan, f1) {
+    const a = A(), o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
+    o.type = 'sine'; o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.06); g.gain.setValueAtTime(vol, t + dur - 0.06); g.gain.linearRampToValueAtTime(0, t + dur);
+    o.connect(g);
+    if (a.createStereoPanner) { const p = a.createStereoPanner(); p.pan.value = pan; g.connect(p); p.connect(a.destination); } else g.connect(a.destination);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  const btn = (txt, fn) => h('button', { class: 'btn', onclick: fn }, txt);
+  b.append(
+    h('p', { class: 'hint' }, 'Montez le volume du téléphone puis écoutez. Le son doit être net, sans grésillement, et sortir du bon côté. Le haut-parleur d’appel (oreillette) n’est pas pilotable depuis un navigateur.'),
+    h('label', { class: 'sub', for: 'vol' }, 'Niveau du signal'), h('input', { type: 'range', id: 'vol', min: 5, max: 100, value: 50, oninput(e) { vol = e.target.value / 100; } }),
+    h('div', { class: 'btn-row' }, btn('Les deux côtés · 440 Hz', () => play(440, 1.5, 0)), btn('Gauche', () => play(660, 1.2, -1)), btn('Droite', () => play(660, 1.2, 1))),
+    h('div', { class: 'btn-row' }, btn('Balayage 100 Hz → 8 kHz', () => play(100, 4, 0, 8000)), btn('Grave · 80 Hz', () => play(80, 2, 0)), btn('Aigu · 6 kHz', () => play(6000, 1.5, 0)))
+  );
+  c.onCleanup(() => { try { ac && ac.close(); } catch (e) {} });
+  c.suggest('Son net et audible, gauche et droite', 'Son absent, faible, grésillant ou déformé');
+}
+
+function tMic(c) {
+  const b = c.body;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { b.append(note('warn', 'Le micro n’est pas accessible ici. Ouvrez DiagPhone en HTTPS ou via localhost.')); c.verdict('skip', 'Micro inaccessible (contexte non sécurisé)'); return; }
+  let stream, ac, an, raf, peak = 0, rec, url;
+  const cv = h('canvas', { class: 'vis', width: 600, height: 140 }), out = h('p', { class: 'mono center' }, 'Micro éteint');
+  const audio = h('audio', { controls: true, style: 'width:100%', hidden: true });
+  const startBtn = h('button', { class: 'btn primary', onclick: start }, 'Activer le micro');
+  const recBtn = h('button', { class: 'btn', disabled: true, onclick: record }, 'Enregistrer 4 s puis réécouter');
+  b.append(h('p', { class: 'hint' }, 'Parlez ou tapez près du micro principal : la courbe doit réagir. Puis enregistrez et réécoutez pour juger la qualité.'), h('div', { class: 'btn-row' }, startBtn, recBtn), cv, out, audio);
+  const g = cv.getContext('2d');
+  function draw() {
+    const buf = new Uint8Array(an.frequencyBinCount); an.getByteFrequencyData(buf);
+    const td = new Uint8Array(an.fftSize); an.getByteTimeDomainData(td);
+    let sum = 0; for (const v of td) { const d = (v - 128) / 128; sum += d * d; } const rms = Math.sqrt(sum / td.length);
+    peak = Math.max(peak, rms);
+    g.clearRect(0, 0, 600, 140); g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+    const bars = 60, w = 600 / bars;
+    for (let i = 0; i < bars; i++) { const v = buf[Math.floor(i * buf.length * 0.5 / bars)] / 255; g.fillRect(i * w + 1, 140 - v * 136, w - 2, v * 136); }
+    out.textContent = 'Niveau ' + Math.round(clamp(rms * 300, 0, 100)) + ' % · pic ' + Math.round(clamp(peak * 300, 0, 100)) + ' %';
+    if (peak > 0.04) c.suggest('Micro actif, signal capté (pic ' + Math.round(clamp(peak * 300, 0, 100)) + ' %)', 'Micro muet ou signal trop faible');
+    raf = requestAnimationFrame(draw);
+  }
+  async function start() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      ac = new (window.AudioContext || window.webkitAudioContext)(); an = ac.createAnalyser(); an.fftSize = 1024; ac.createMediaStreamSource(stream).connect(an);
+      startBtn.disabled = true; recBtn.disabled = false; draw();
+      const n = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput').length; b.append(note('', n + ' entrée(s) audio détectée(s).'));
+    } catch (e) { b.append(note('bad', 'Micro refusé ou introuvable : ' + (e.name || e.message) + '. Autorisez le micro pour ce site dans les réglages de Chrome.')); c.suggest('', 'Micro inaccessible'); }
+  }
+  function record() {
+    if (!stream || !window.MediaRecorder) { toast('Enregistrement non pris en charge'); return; }
+    const chunks = []; rec = new MediaRecorder(stream); rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = () => { if (url) URL.revokeObjectURL(url); url = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType })); audio.src = url; audio.hidden = false; audio.play().catch(() => {}); recBtn.disabled = false; recBtn.textContent = 'Réenregistrer'; };
+    recBtn.disabled = true; recBtn.textContent = 'Enregistrement…'; rec.start(); setTimeout(() => rec.state === 'recording' && rec.stop(), 4000);
+  }
+  c.onCleanup(() => { cancelAnimationFrame(raf); stream && stream.getTracks().forEach(t => t.stop()); try { ac && ac.close(); } catch (e) {} if (url) URL.revokeObjectURL(url); });
+  c.suggest('Micro actif, voix captée et réécoutée', 'Micro muet, faible ou saturé');
+}
+
+function tCamera(c) {
+  const b = c.body;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { b.append(note('warn', 'La caméra n’est pas accessible ici. Ouvrez DiagPhone en HTTPS ou via localhost.')); c.verdict('skip', 'Caméra inaccessible (contexte non sécurisé)'); return; }
+  let stream = null, facing = 'environment', torchOn = false; const tested = {};
+  const video = h('video', { class: 'cam', autoplay: true, playsinline: true, muted: true });
+  const infoBox = h('div'), shot = h('div'), torchBtn = h('button', { class: 'btn', hidden: true, onclick: toggleTorch }, 'Lampe torche');
+  const sharp = v => {
+    const w = 160, hh = Math.round(160 * v.videoHeight / v.videoWidth) || 120, cv = document.createElement('canvas'); cv.width = w; cv.height = hh;
+    const x = cv.getContext('2d', { willReadFrequently: true }); x.drawImage(v, 0, 0, w, hh); const d = x.getImageData(0, 0, w, hh).data, g = new Float32Array(w * hh); let mean = 0;
+    for (let i = 0; i < w * hh; i++) { g[i] = .299 * d[i * 4] + .587 * d[i * 4 + 1] + .114 * d[i * 4 + 2]; mean += g[i]; } mean /= w * hh;
+    let s = 0, n = 0; for (let y = 1; y < hh - 1; y++) for (let xx = 1; xx < w - 1; xx++) { const i = y * w + xx, l = 4 * g[i] - g[i - 1] - g[i + 1] - g[i - w] - g[i + w]; s += l * l; n++; }
+    return { sharp: Math.round(s / n), light: Math.round(mean / 255 * 100) };
+  };
+  function stop() { if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; } torchOn = false; }
+  async function open() {
+    stop();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facing }, width: { ideal: 4096 }, height: { ideal: 2160 } }, audio: false });
+      video.srcObject = stream; await video.play().catch(() => {});
+      const tr = stream.getVideoTracks()[0], st = tr.getSettings ? tr.getSettings() : {}, cap = tr.getCapabilities ? tr.getCapabilities() : {};
+      tested[facing] = st.width + '×' + st.height;
+      torchBtn.hidden = !cap.torch;
+      infoBox.replaceChildren(kvBox([['Caméra active', facing === 'user' ? 'Frontale' : 'Arrière'], ['Résolution obtenue', (st.width || '?') + ' × ' + (st.height || '?')], ['Cadence', st.frameRate ? Math.round(st.frameRate) + ' i/s' : 'inconnue'], ['Zoom', cap.zoom ? cap.zoom.min + ' à ' + cap.zoom.max : 'non exposé'], ['Mise au point', cap.focusMode ? cap.focusMode.join(', ') : 'non exposée'], ['Lampe torche', cap.torch ? 'disponible' : 'non exposée']]));
+      const names = Object.keys(tested).map(k => (k === 'user' ? 'avant' : 'arrière') + ' ' + tested[k]).join(', ');
+      c.suggest('Caméra OK : ' + names, 'Caméra noire, floue, absente ou en erreur');
+    } catch (e) { infoBox.replaceChildren(note('bad', 'Caméra indisponible : ' + (e.name || e.message) + '. Autorisez la caméra pour ce site dans les réglages de Chrome.')); c.suggest('', 'Caméra inaccessible'); }
+  }
+  async function toggleTorch() {
+    try { const tr = stream.getVideoTracks()[0]; torchOn = !torchOn; await tr.applyConstraints({ advanced: [{ torch: torchOn }] }); toast(torchOn ? 'Lampe allumée' : 'Lampe éteinte'); } catch (e) { toast('Lampe non pilotable'); }
+  }
+  function photo() {
+    if (!stream || !video.videoWidth) return toast('Démarrez d’abord la caméra');
+    const cv = document.createElement('canvas'); cv.width = video.videoWidth; cv.height = video.videoHeight; cv.getContext('2d').drawImage(video, 0, 0);
+    const s = sharp(video);
+    shot.replaceChildren(h('img', { src: cv.toDataURL('image/jpeg', .7), alt: 'Photo de test', style: 'max-width:100%;border-radius:12px' }),
+      kvBox([['Indice de netteté', String(s.sharp)], ['Luminosité moyenne', s.light + ' %']]),
+      h('p', { class: 'hint' }, 'Comparez l’indice de netteté entre vos deux caméras sur la même scène. Un écart très marqué signale une optique sale ou un autofocus défaillant.'));
+  }
+  b.append(h('p', { class: 'hint' }, 'Visez une scène détaillée (texte, tissu). L’image doit être nette, sans taches ni bandes. Testez l’avant et l’arrière, la lampe et la photo.'), video, infoBox,
+    h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: open }, 'Démarrer la caméra'),
+      h('button', { class: 'btn', onclick() { facing = facing === 'user' ? 'environment' : 'user'; open(); } }, 'Inverser avant / arrière'), torchBtn, h('button', { class: 'btn', onclick: photo }, 'Prendre une photo')), shot);
+  c.onCleanup(stop);
+  c.suggest('Caméra OK', 'Caméra défaillante');
+}
+
+function tVibration(c) {
+  const b = c.body;
+  if (!navigator.vibrate) { b.append(note('warn', 'La vibration n’est pas pilotable depuis ce navigateur.')); c.verdict('skip', 'Vibration non prise en charge par le navigateur'); return; }
+  const v = (txt, p) => h('button', { class: 'btn', onclick() { navigator.vibrate(p); } }, txt);
+  b.append(h('p', { class: 'hint' }, 'Tenez le téléphone en main. Vérifiez que le mode silencieux ou l’économiseur de batterie ne coupe pas les vibrations.'),
+    h('div', { class: 'btn-row' }, v('Impulsion courte', 200), v('Impulsion longue', 1200), v('Rythme SOS', [150, 80, 150, 80, 150, 200, 450, 80, 450, 80, 450, 200, 150, 80, 150, 80, 150])));
+  c.onCleanup(() => navigator.vibrate(0));
+  c.suggest('Vibrations ressenties, courtes et longues', 'Aucune vibration ou vibration faible');
+}
+
+function tSensors(c) {
+  const b = c.body;
+  if (!('DeviceMotionEvent' in window) && !('DeviceOrientationEvent' in window)) { b.append(note('warn', 'Les capteurs de mouvement ne sont pas exposés par ce navigateur.')); c.verdict('skip', 'Capteurs de mouvement non exposés'); return; }
+  const ch = { acc: chipStatus('Accéléromètre'), gyro: chipStatus('Gyroscope'), ori: chipStatus('Orientation'), mag: chipStatus('Magnétomètre'), lux: chipStatus('Lumière') };
+  const bubble = h('div', { class: 'bubble' }), level = h('div', { class: 'level' }, bubble);
+  const needle = h('div', { class: 'nd' }), compass = h('div', { class: 'compass' }, h('b', {}, 'N'), needle);
+  const live = h('div'); let samples = 0, maxRot = 0, g = 0, started = false;
+  const ok = { acc: false, gyro: false, ori: false }, state = {};
+  const render = () => live.replaceChildren(kvBox([
+    ['Gravité mesurée', g ? g.toFixed(2) + ' m/s² (attendu ≈ 9,81)' : '—', ok.acc ? 'pass' : ''],
+    ['Rotation max', Math.round(maxRot) + ' °/s', ok.gyro ? 'pass' : ''],
+    ['Inclinaison avant/arrière', state.beta != null ? state.beta.toFixed(0) + '°' : '—'], ['Inclinaison gauche/droite', state.gamma != null ? state.gamma.toFixed(0) + '°' : '—'],
+    ['Cap (boussole)', state.head != null ? state.head.toFixed(0) + '°' : '—']]));
+  function check() {
+    if (ok.acc && ok.gyro && ok.ori) c.verdict('pass', 'Accéléromètre, gyroscope et orientation répondent correctement (gravité ' + g.toFixed(2) + ' m/s²).');
+  }
+  const onMotion = e => {
+    samples++; const a = e.accelerationIncludingGravity;
+    if (a && a.x != null) {
+      const m = Math.hypot(a.x, a.y, a.z); g = g ? g * .8 + m * .2 : m;
+      if (samples > 20) { ok.acc = g > 8.3 && g < 11.3; ch.acc.set(ok.acc ? 'pass' : 'warn', g.toFixed(2) + ' m/s²'); }
+    }
+    const r = e.rotationRate;
+    if (r && r.alpha != null) { const m = Math.max(Math.abs(r.alpha), Math.abs(r.beta), Math.abs(r.gamma)); maxRot = Math.max(maxRot, m); if (maxRot > 30) { ok.gyro = true; ch.gyro.set('pass', 'rotation détectée'); } else ch.gyro.set('warn', 'faites pivoter le téléphone'); }
+    render(); check();
+  };
+  const onOri = e => {
+    if (e.beta == null) return; state.beta = e.beta; state.gamma = e.gamma; ok.ori = true; ch.ori.set('pass', 'actif');
+    bubble.style.left = (50 + clamp(e.gamma, -30, 30) / 30 * 38) + '%'; bubble.style.top = (50 + clamp(e.beta, -30, 30) / 30 * 38) + '%';
+    if (e.alpha != null && e.type !== 'deviceorientationabsolute') { state.head = (360 - e.alpha) % 360; needle.style.transform = 'rotate(' + (-state.head) + 'deg)'; }
+  };
+  const onAbs = e => { if (e.alpha == null) return; state.head = (360 - e.alpha) % 360; needle.style.transform = 'rotate(' + (-state.head) + 'deg)'; };
+  async function start() {
+    if (started) return; started = true;
+    try {
+      if (typeof DeviceMotionEvent.requestPermission === 'function') { const r = await DeviceMotionEvent.requestPermission(); if (r !== 'granted') throw new Error('permission refusée'); }
+    } catch (e) { b.append(note('bad', 'Accès aux capteurs refusé : ' + e.message)); return; }
+    window.addEventListener('devicemotion', onMotion); window.addEventListener('deviceorientation', onOri); window.addEventListener('deviceorientationabsolute', onAbs);
+    c.onCleanup(() => { window.removeEventListener('devicemotion', onMotion); window.removeEventListener('deviceorientation', onOri); window.removeEventListener('deviceorientationabsolute', onAbs); });
+    try { const m = new Magnetometer({ frequency: 10 }); m.addEventListener('reading', () => { const f = Math.hypot(m.x, m.y, m.z); ch.mag.set(f > 15 && f < 90 ? 'pass' : 'warn', f.toFixed(0) + ' µT'); }); m.addEventListener('error', () => ch.mag.set('skip', 'indisponible')); m.start(); c.onCleanup(() => m.stop()); } catch (e) { ch.mag.set('skip', 'indisponible'); }
+    try { const l = new AmbientLightSensor(); l.addEventListener('reading', () => ch.lux.set('pass', Math.round(l.illuminance) + ' lx')); l.addEventListener('error', () => ch.lux.set('skip', 'indisponible')); l.start(); c.onCleanup(() => l.stop()); } catch (e) { ch.lux.set('skip', 'indisponible'); }
+    setTimeout(() => { if (!samples) { b.append(note('bad', 'Aucune donnée reçue. Les capteurs sont peut-être coupés (économiseur de batterie, réglages du site) ou défaillants.')); c.suggest('', 'Aucune donnée des capteurs de mouvement'); } }, 3000);
+  }
+  b.append(h('p', { class: 'hint' }, 'Posez le téléphone à plat : la gravité doit afficher environ 9,81 m/s² et la bulle rester au centre. Faites ensuite pivoter le téléphone pour réveiller le gyroscope.'),
+    h('div', { class: 'dials' }, level, compass), h('div', { class: 'chipset' }, Object.values(ch).map(x => x.el)), live,
+    note('', 'Le capteur de proximité n’est exposé par aucun navigateur. Testez-le en passant la main près de l’écran pendant un appel.'));
+  render();
+  if (typeof DeviceMotionEvent.requestPermission === 'function') b.append(h('button', { class: 'btn primary', onclick: start }, 'Autoriser les capteurs')); else start();
+  c.suggest('Capteurs de mouvement fonctionnels', 'Capteurs de mouvement défaillants');
+}
+
+function tGps(c) {
+  const b = c.body;
+  if (!navigator.geolocation) { b.append(note('warn', 'La géolocalisation n’est pas disponible.')); c.verdict('skip', 'Géolocalisation indisponible'); return; }
+  let wid = null, t0 = 0, fixes = 0, first = null; const out = h('div');
+  const btn = h('button', { class: 'btn primary', onclick: start }, 'Lancer la localisation');
+  b.append(h('p', { class: 'hint' }, 'Placez-vous près d’une fenêtre ou dehors. Activez la localisation du téléphone. Les coordonnées restent sur votre appareil.'), btn, out);
+  function start() {
+    btn.disabled = true; t0 = Date.now(); out.replaceChildren(note('', 'Recherche d’un signal…'));
+    wid = navigator.geolocation.watchPosition(p => {
+      fixes++; if (first == null) first = (Date.now() - t0) / 1000; const k = p.coords, acc = Math.round(k.accuracy);
+      out.replaceChildren(kvBox([['Précision', '± ' + acc + ' m', acc <= 30 ? 'pass' : acc <= 100 ? 'warn' : 'fail'], ['Premier signal', first.toFixed(1) + ' s'], ['Latitude', k.latitude.toFixed(5)], ['Longitude', k.longitude.toFixed(5)],
+        ['Altitude', k.altitude != null ? Math.round(k.altitude) + ' m' : 'non fournie'], ['Vitesse', k.speed != null ? (k.speed * 3.6).toFixed(1) + ' km/h' : 'non fournie'], ['Mesures reçues', String(fixes)]]));
+      if (acc <= 30) c.verdict('pass', 'Position obtenue en ' + first.toFixed(1) + ' s, précision ± ' + acc + ' m.');
+      else c.suggest('Position obtenue, précision ± ' + acc + ' m (' + first.toFixed(1) + ' s)', 'Précision GPS insuffisante');
+    }, err => {
+      btn.disabled = false; const m = { 1: 'Autorisation refusée : activez la localisation pour ce site.', 2: 'Position indisponible (GPS coupé ou sans signal).', 3: 'Délai dépassé sans signal.' }[err.code] || err.message;
+      out.replaceChildren(note('bad', m)); c.suggest('', 'GPS sans signal ou refusé');
+    }, { enableHighAccuracy: true, timeout: 40000, maximumAge: 0 });
+  }
+  c.onCleanup(() => { if (wid != null) navigator.geolocation.clearWatch(wid); });
+  c.suggest('GPS fonctionnel', 'GPS sans signal');
+}
+
+async function tNetwork(c) {
+  const b = c.body, conn = navigator.connection || navigator.mozConnection || {};
+  const box = h('div'), res = h('div');
+  const draw = () => box.replaceChildren(kvBox([['Connexion', navigator.onLine ? 'en ligne' : 'hors ligne', navigator.onLine ? 'pass' : 'fail'], ['Type effectif', conn.effectiveType || 'non exposé'], ['Débit estimé', conn.downlink != null ? conn.downlink + ' Mb/s' : 'non exposé'], ['Latence estimée', conn.rtt != null ? conn.rtt + ' ms' : 'non exposée'], ['Économiseur de données', conn.saveData ? 'activé' : 'non']]));
+  draw(); window.addEventListener('online', draw); window.addEventListener('offline', draw); c.onCleanup(() => { window.removeEventListener('online', draw); window.removeEventListener('offline', draw); });
+  const btn = h('button', { class: 'btn primary', onclick: run }, 'Mesurer latence et débit');
+  b.append(h('p', { class: 'hint' }, 'Connectez-vous au Wi-Fi puis aux données mobiles et comparez. Le test envoie quelques requêtes et télécharge 4 Mo.'), box, btn, res);
+  async function run() {
+    btn.disabled = true; res.replaceChildren(note('', 'Mesure en cours…'));
+    const lat = [];
+    for (let i = 0; i < 5; i++) { const t = performance.now(); try { await fetch('https://www.gstatic.com/generate_204?r=' + Math.random(), { mode: 'no-cors', cache: 'no-store' }); lat.push(performance.now() - t); } catch (e) {} }
+    let mbps = null;
+    try {
+      const t = performance.now(), r = await fetch('https://speed.cloudflare.com/__down?bytes=4000000', { cache: 'no-store' }); const rd = r.body.getReader(); let n = 0;
+      for (;;) { const { done, value } = await rd.read(); if (done) break; n += value.length; }
+      mbps = n * 8 / 1e6 / ((performance.now() - t) / 1000);
+    } catch (e) {}
+    btn.disabled = false;
+    if (!lat.length) { res.replaceChildren(note('bad', 'Internet injoignable. Vérifiez le Wi-Fi ou les données mobiles.')); c.verdict('warn', 'Internet injoignable pendant le test'); return; }
+    const L = Math.round(median(lat)), rows = [['Latence médiane', L + ' ms', L < 150 ? 'pass' : L < 400 ? 'warn' : 'fail'], ['Débit descendant', mbps != null ? mbps.toFixed(1) + ' Mb/s' : 'mesure impossible', mbps == null ? '' : mbps >= 5 ? 'pass' : mbps >= 1.5 ? 'warn' : 'fail']];
+    res.replaceChildren(kvBox(rows));
+    const good = L < 400 && (mbps == null || mbps >= 1.5);
+    c.verdict(good ? 'pass' : 'warn', 'Latence ' + L + ' ms' + (mbps != null ? ', débit ' + mbps.toFixed(1) + ' Mb/s' : '') + (good ? '.' : '. Performances faibles : testez ailleurs avant de conclure à une panne.'));
+  }
+  c.suggest('Réseau opérationnel', 'Réseau défaillant');
+  if (c.auto) run();
+}
+
+function tConnect(c) {
+  const b = c.body, bt = chipStatus('Bluetooth'), nfc = chipStatus('NFC'); const logs = h('div');
+  bt.set('skip', 'non testé'); nfc.set('skip', 'non testé');
+  const sug = () => { const okS = [bt, nfc].filter(x => x.el.dataset.st === 'pass').length; c.suggest(okS ? 'Fonctionnel : ' + [bt, nfc].filter(x => x.el.dataset.st === 'pass').map(x => x.el.textContent.split(' · ')[0]).join(' et ') : 'Aucune puce confirmée', 'Bluetooth ou NFC défaillant'); };
+  b.append(h('p', { class: 'hint' }, 'Activez le Bluetooth et le NFC dans les réglages du téléphone avant de commencer. Si votre téléphone n’a pas de NFC, passez cette partie.'), h('div', { class: 'chipset' }, bt.el, nfc.el), logs);
+  b.append(h('div', { class: 'btn-row' },
+    h('button', { class: 'btn', async onclick() {
+      if (!navigator.bluetooth) { bt.set('skip', 'non pris en charge'); return; }
+      try { const d = await navigator.bluetooth.requestDevice({ acceptAllDevices: true }); bt.set('pass', 'appareil vu : ' + (d.name || 'sans nom')); }
+      catch (e) { bt.set(e.name === 'NotFoundError' ? 'warn' : 'fail', e.name === 'NotFoundError' ? 'aucun appareil choisi' : (e.message || e.name)); } sug();
+    } }, 'Chercher du Bluetooth'),
+    h('button', { class: 'btn', async onclick() {
+      if (!('NDEFReader' in window)) { nfc.set('skip', 'non pris en charge'); return; }
+      try { const r = new NDEFReader(); await r.scan(); nfc.set('warn', 'approchez une carte ou un badge NFC'); r.onreading = e => { nfc.set('pass', 'étiquette lue (' + (e.serialNumber || 'sans série') + ')'); sug(); }; r.onreadingerror = () => nfc.set('warn', 'étiquette illisible'); }
+      catch (e) { nfc.set('fail', e.name === 'NotAllowedError' ? 'refusé' : e.name === 'NotReadableError' ? 'NFC désactivé dans les réglages' : (e.message || e.name)); } sug();
+    } }, 'Lire une étiquette NFC')));
+  c.suggest('Aucune puce confirmée', 'Bluetooth ou NFC défaillant');
+}
+
+async function tBio(c) {
+  const b = c.body; let avail = null;
+  try { avail = window.PublicKeyCredential ? await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable() : null; } catch (e) {}
+  const res = h('div');
+  b.append(h('p', { class: 'hint' }, 'Vérifie qu’un verrouillage sécurisé (empreinte, visage ou code) est configuré, puis déclenche une vraie demande d’authentification pour contrôler le capteur.'),
+    kvBox([['Authentification intégrée', avail === null ? 'non prise en charge' : avail ? 'disponible' : 'non configurée', avail ? 'pass' : avail === false ? 'warn' : '']]), res);
+  b.append(h('button', { class: 'btn primary', async onclick() {
+    if (!window.PublicKeyCredential) { toast('Non pris en charge'); return; }
+    res.replaceChildren(note('', 'Posez le doigt sur le capteur ou regardez l’écran quand la fenêtre apparaît…'));
+    try {
+      await navigator.credentials.create({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { name: 'DiagPhone' }, user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'test', displayName: 'Test capteur' }, pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }], authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' }, timeout: 60000 } });
+      res.replaceChildren(note('good', 'Authentification réussie.')); c.verdict('pass', 'Capteur biométrique ou verrou d’écran validé par une vraie authentification.');
+    } catch (e) { res.replaceChildren(note(e.name === 'NotAllowedError' ? 'warn' : 'bad', 'Échec ou annulation : ' + (e.name || e.message) + '. Sur un fichier local ou une adresse sans HTTPS, ce test ne peut pas aboutir.')); c.suggest('', 'Authentification échouée'); }
+  } }, 'Tester l’authentification'));
+  c.suggest('Authentification fonctionnelle', 'Capteur biométrique défaillant');
+}
+
+function tPerf(c) {
+  const b = c.body, out = h('div'), prog = h('p', { class: 'mono center muted' }); let workers = [];
+  const src = `onmessage=e=>{const d=e.data;if(d.mode==='bench'){const t=performance.now();let x=0;for(let i=1;i<=2e7;i++){x+=Math.sqrt(i)*Math.sin(i);}postMessage({ms:performance.now()-t,x});}else{const end=performance.now()+d.ms;let tick=performance.now(),n=0,x=0;while(performance.now()<end){for(let i=1;i<=200000;i++){x+=Math.sqrt(i)*Math.sin(i);}n++;const now=performance.now();if(now-tick>=1000){postMessage({tick:n});n=0;tick=now;}}postMessage({done:1,x});}}`;
+  const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+  const spawn = n => Array.from({ length: n }, () => { const w = new Worker(url); workers.push(w); return w; });
+  const kill = () => { workers.forEach(w => w.terminate()); workers = []; };
+  c.onCleanup(() => { kill(); URL.revokeObjectURL(url); });
+  const bench = n => new Promise(res => { const ws = spawn(n), ms = []; ws.forEach(w => { w.onmessage = e => { ms.push(e.data.ms); if (ms.length === n) { res(Math.max(...ms)); ws.forEach(x => x.terminate()); } }; w.postMessage({ mode: 'bench' }); }); });
+  const stress = (n, dur) => new Promise(res => { const ws = spawn(n), ticks = ws.map(() => []); let fin = 0;
+    ws.forEach((w, i) => { w.onmessage = e => { if (e.data.tick != null) ticks[i].push(e.data.tick); if (e.data.done) { fin++; if (fin === n) { const L = Math.min(...ticks.map(t => t.length)); res(Array.from({ length: L }, (_, k) => ticks.reduce((s, t) => s + t[k], 0))); ws.forEach(x => x.terminate()); } } }; w.postMessage({ mode: 'stress', ms: dur }); }); });
+  const refresh = () => new Promise(res => { const d = []; let last = 0; const t0 = performance.now(); const f = t => { if (last) d.push(t - last); last = t; if (t - t0 < 1500) requestAnimationFrame(f); else { const m = median(d), hz = 1000 / m; const std = [30, 48, 60, 72, 90, 120, 144, 165]; res({ hz: std.reduce((a, x) => Math.abs(x - hz) < Math.abs(a - hz) ? x : a), jank: d.filter(x => x > m * 1.5).length / d.length }); } }; requestAnimationFrame(f); });
+  const btn = h('button', { class: 'btn primary', onclick: run }, 'Lancer le test (≈ 25 s)');
+  b.append(h('p', { class: 'hint' }, 'Mesure la fréquence d’écran, la vitesse du processeur et sa tenue à la chauffe. Laissez l’écran allumé et ne touchez à rien pendant le test.'), btn, prog, out);
+  async function run() {
+    btn.disabled = true; const cores = clamp(navigator.hardwareConcurrency || 4, 2, 8);
+    try {
+      prog.textContent = 'Fréquence d’écran…'; const fr = await refresh();
+      prog.textContent = 'Processeur, un cœur…'; const one = await bench(1);
+      prog.textContent = 'Processeur, ' + cores + ' cœurs…'; const all = await bench(cores);
+      prog.textContent = 'Test de chauffe, 12 s…'; const tk = await stress(cores, 12000);
+      const k = Math.min(3, Math.floor(tk.length / 3) || 1), a = tk.slice(0, k).reduce((s, x) => s + x, 0) / k, z = tk.slice(-k).reduce((s, x) => s + x, 0) / k, drop = a ? Math.round((1 - z / a) * 100) : 0;
+      const s1 = Math.round(2e7 / one / 1000), sm = Math.round(2e7 * cores / all / 1000);
+      prog.textContent = '';
+      out.replaceChildren(kvBox([['Fréquence d’écran', fr.hz + ' Hz'], ['Fluidité', fr.jank < .05 ? 'régulière' : Math.round(fr.jank * 100) + ' % d’images en retard', fr.jank < .05 ? 'pass' : 'warn'], ['Indice CPU, 1 cœur', s1 + ' Mop/s'], ['Indice CPU, ' + cores + ' cœurs', sm + ' Mop/s'], ['Perte de débit après 12 s', drop + ' %', drop <= 20 ? 'pass' : drop <= 35 ? 'warn' : 'fail'], ['Mémoire annoncée', navigator.deviceMemory ? '≈ ' + navigator.deviceMemory + ' Go (arrondi par le navigateur)' : 'non exposée']]));
+      perfData = { hz: fr.hz, s1, sm, drop };
+      const bad = drop > 35 || fr.jank > .2;
+      c.verdict(bad ? 'warn' : 'pass', 'Écran ' + fr.hz + ' Hz, indice CPU ' + s1 + '/' + sm + ' Mop/s, perte à la chauffe ' + drop + ' %' + (bad ? '. Le téléphone ralentit ou saccade sous charge.' : '.'));
+    } catch (e) { prog.textContent = ''; out.replaceChildren(note('bad', 'Test interrompu : ' + e.message)); btn.disabled = false; }
+  }
+  c.suggest('Performances normales', 'Performances anormales');
+  if (c.auto) run();
+}
+let perfData = null;
+
+async function tStorage(c) {
+  const b = c.body, out = h('div'), btn = h('button', { class: 'btn primary', onclick: run }, 'Mesurer la vitesse d’écriture');
+  const idb = () => new Promise((res, rej) => { const r = indexedDB.open('diagphone-test', 1); r.onupgradeneeded = () => r.result.createObjectStore('b'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  const tx = (db, mode, fn) => new Promise((res, rej) => { const t = db.transaction('b', mode), r = fn(t.objectStore('b')); t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); });
+  b.append(h('p', { class: 'hint' }, 'Écrit puis relit 24 Mo dans le stockage du navigateur pour mesurer la vitesse de la mémoire flash. Le quota affiché est celui du navigateur, pas l’espace libre exact du téléphone.'), btn, out);
+  async function run() {
+    btn.disabled = true; out.replaceChildren(note('', 'Mesure en cours…'));
+    try {
+      const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null; const size = 24 * 1024 * 1024, buf = new Uint8Array(size);
+      for (let i = 0; i < size; i += 65536) crypto.getRandomValues(buf.subarray(i, Math.min(i + 65536, size)));
+      const db = await idb(); let t = performance.now(); await tx(db, 'readwrite', s => s.put(buf, 'k')); const w = 24 / ((performance.now() - t) / 1000);
+      t = performance.now(); const back = await tx(db, 'readonly', s => s.get('k')); const r = 24 / ((performance.now() - t) / 1000); const okData = back && back.length === size;
+      await tx(db, 'readwrite', s => s.delete('k')); db.close();
+      const rows = [['Écriture', w.toFixed(0) + ' Mo/s', w >= 20 ? 'pass' : w >= 5 ? 'warn' : 'fail'], ['Lecture', r.toFixed(0) + ' Mo/s (en partie mise en cache)'], ['Intégrité des données', okData ? 'conforme' : 'ERREUR', okData ? 'pass' : 'fail']];
+      if (est) rows.push(['Quota du navigateur', Math.round(est.quota / 1e9 * 10) / 10 + ' Go'], ['Déjà utilisé par DiagPhone', Math.round((est.usage || 0) / 1e6) + ' Mo']);
+      out.replaceChildren(kvBox(rows));
+      const st = !okData ? 'fail' : w < 5 ? 'warn' : 'pass';
+      c.verdict(st, okData ? 'Écriture ' + w.toFixed(0) + ' Mo/s, lecture ' + r.toFixed(0) + ' Mo/s, données intactes.' : 'Les données relues diffèrent de celles écrites : mémoire suspecte.');
+    } catch (e) { out.replaceChildren(note('bad', 'Stockage inaccessible : ' + (e.name || e.message))); btn.disabled = false; }
+  }
+  c.suggest('Stockage fonctionnel', 'Stockage défaillant');
+  if (c.auto) run();
+}
+
+/* ---------- registre des tests (dans l'ordre du diagnostic complet) ---------- */
+const TESTS = [
+  { id: 'battery', cat: 'energie', title: 'Batterie', icon: 'battery', w: 10, mount: tBattery },
+  { id: 'screen', cat: 'ecran', title: 'Affichage et pixels', icon: 'screen', w: 12, mount: tScreen },
+  { id: 'touch', cat: 'ecran', title: 'Écran tactile', icon: 'touch', w: 10, mount: tTouch },
+  { id: 'multitouch', cat: 'ecran', title: 'Multitouch', icon: 'multitouch', w: 4, mount: tMulti },
+  { id: 'speaker', cat: 'audio', title: 'Haut-parleur', icon: 'speaker', w: 10, mount: tSpeaker },
+  { id: 'mic', cat: 'audio', title: 'Microphone', icon: 'mic', w: 10, mount: tMic },
+  { id: 'camera', cat: 'camera', title: 'Caméras et lampe', icon: 'camera', w: 12, mount: tCamera },
+  { id: 'vibration', cat: 'audio', title: 'Vibreur', icon: 'vibrate', w: 3, mount: tVibration },
+  { id: 'sensors', cat: 'capteurs', title: 'Accéléromètre, gyroscope, boussole', icon: 'sensors', w: 8, mount: tSensors },
+  { id: 'gps', cat: 'capteurs', title: 'GPS', icon: 'gps', w: 5, mount: tGps },
+  { id: 'network', cat: 'reseau', title: 'Réseau et débit', icon: 'network', w: 6, mount: tNetwork },
+  { id: 'connect', cat: 'reseau', title: 'Bluetooth et NFC', icon: 'connect', w: 2, mount: tConnect },
+  { id: 'bio', cat: 'reseau', title: 'Empreinte et verrou', icon: 'bio', w: 3, mount: tBio },
+  { id: 'perf', cat: 'perf', title: 'Processeur, écran et chauffe', icon: 'perf', w: 5, mount: tPerf },
+  { id: 'storage', cat: 'perf', title: 'Stockage', icon: 'storage', w: 3, mount: tStorage }
+];
+
+/* ---------- exécuteur de tests ---------- */
+let R = null, runnerOpen = false, wake = null;
+function openRunner() {
+  if (!runnerOpen) { runnerOpen = true; try { history.pushState({ r: 1 }, ''); } catch (e) {} }
+  $('#runner').hidden = false; document.body.style.overflow = 'hidden';
+  if (navigator.wakeLock) navigator.wakeLock.request('screen').then(l => wake = l).catch(() => {});
+}
+function teardown() { if (R) { const cl = R.cleanups; R = null; cl.forEach(f => { try { f(); } catch (e) {} }); } }
+function closeRunner(fromPop) {
+  teardown(); $('#runner').hidden = true; document.body.style.overflow = '';
+  if (wake) { wake.release().catch(() => {}); wake = null; }
+  if (runnerOpen) { runnerOpen = false; if (!fromPop) { try { history.back(); } catch (e) {} } }
+  render();
+}
+window.addEventListener('popstate', () => { if (runnerOpen) closeRunner(true); });
+$('#r-back').addEventListener('click', () => closeRunner());
+
+function setFooter(mode) {
+  const f = $('#rfoot'); f.replaceChildren();
+  const mk = (cls, txt, fn) => h('button', { class: 'btn ' + cls, onclick: fn }, txt);
+  if (mode === 'manual') f.append(mk('bad', 'Problème', () => finish('fail')), mk('ghost', 'Passer', () => finish('skip')), mk('good', 'Ça marche', () => finish('pass')));
+  else f.append(mk('primary', R && R.seq && R.idx < R.seq.length - 1 ? 'Test suivant' : 'Terminer', () => finish(R.v.status, R.v.detail)));
+}
+function finish(status, detail) {
+  if (!R) return;
+  const t = R.t, seq = R.seq, idx = R.idx;
+  if (detail == null) detail = status === 'pass' ? (R.passMsg || 'Confirmé par vos soins') : status === 'fail' ? (R.failMsg || 'Défaut constaté') : 'Passé sans test';
+  results[t.id] = { status, detail, ts: Date.now() }; store.set('results', results);
+  teardown();
+  if (seq && idx < seq.length - 1) startTest(seq[idx + 1], seq, idx + 1);
+  else { closeRunner(); toast(t.title + ' : ' + STATUS[status].toLowerCase()); }
+}
+async function startTest(id, seq, idx) {
+  teardown();
+  const t = TESTS.find(x => x.id === id); if (!t) return;
+  idx = idx || 0;
+  const body = $('#rbody'); body.replaceChildren();
+  R = { t, seq: seq || null, idx, cleanups: [], passMsg: '', failMsg: '', v: null };
+  const my = R;
+  $('#r-name').textContent = t.title;
+  $('#r-step').textContent = seq ? 'Test ' + (idx + 1) + ' sur ' + seq.length : (CATS.find(c => c.id === t.cat) || {}).name;
+  $('#r-bar').style.width = seq ? ((idx) / seq.length * 100) + '%' : '0';
+  setFooter('manual'); openRunner(); body.scrollTop = 0;
+  const ctx = {
+    body, auto: !!seq,
+    onCleanup(fn) { my.cleanups.push(fn); },
+    suggest(pass, fail) { if (R !== my) return; if (pass) my.passMsg = pass; if (fail) my.failMsg = fail; },
+    verdict(status, detail) {
+      if (R !== my) return; my.v = { status, detail };
+      $$('.verdict', body).forEach(x => x.remove());
+      body.append(h('div', { class: 'verdict ' + status, html: '<div style="width:28px;color:' + colorOf(status === 'pass' ? 'good' : status === 'warn' ? 'warn' : status === 'fail' ? 'bad' : '') + '">' + icon(status === 'pass' ? 'check' : 'warn') + '</div>' }, h('div', {}, h('b', {}, STATUS[status] === 'Non testé' ? 'Non testable ici' : STATUS[status]), h('span', { class: 'muted' }, detail))));
+      setFooter('verdict'); body.scrollTop = body.scrollHeight;
+    }
+  };
+  try { await t.mount(ctx); } catch (e) { if (R === my) body.append(note('bad', 'Erreur pendant le test : ' + e.message)); }
+}
+function runSequence(onlyMissing) {
+  const ids = TESTS.filter(t => !onlyMissing || !results[t.id] || results[t.id].status === 'skip').map(t => t.id);
+  if (!ids.length) { toast('Tout est déjà testé'); return; }
+  startTest(ids[0], ids, 0);
+}
+
+/* ---------- informations appareil ---------- */
+function gpuInfo() {
+  try { const cv = document.createElement('canvas'), gl = cv.getContext('webgl') || cv.getContext('experimental-webgl'); if (!gl) return null; const e = gl.getExtension('WEBGL_debug_renderer_info'); return { renderer: e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER), vendor: e ? gl.getParameter(e.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR) }; } catch (e) { return null; }
+}
+async function gatherInfo() {
+  let he = {}; try { he = (navigator.userAgentData && await navigator.userAgentData.getHighEntropyValues(['model', 'platformVersion', 'architecture', 'bitness'])) || {}; } catch (e) {}
+  const ua = navigator.userAgent, m = /Android [\d.]+; ([^;)]+?)(?: Build|\))/.exec(ua);
+  let model = he.model || (m && m[1]) || ''; if (model === 'K' || !model) model = 'non communiqué par le navigateur';
+  const gpu = gpuInfo(), est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate().catch(() => null) : null;
+  const dpr = window.devicePixelRatio || 1, sw = screen.width, sh = screen.height;
+  return [
+    ['Identité', [['Modèle', model], ['Android', he.platformVersion ? he.platformVersion : (/Android ([\d.]+)/.exec(ua) || [])[1] || 'inconnu'], ['Architecture', he.architecture ? he.architecture + (he.bitness ? ' ' + he.bitness + ' bits' : '') : 'non exposée'], ['Navigateur', (navigator.userAgentData && navigator.userAgentData.brands ? navigator.userAgentData.brands.filter(b => !/Not.?A/i.test(b.brand)).map(b => b.brand + ' ' + b.version).join(', ') : ua.split(' ').slice(-2).join(' '))]]],
+    ['Écran', [['Résolution logique', sw + ' × ' + sh], ['Résolution physique', Math.round(sw * dpr) + ' × ' + Math.round(sh * dpr) + ' px'], ['Densité', dpr.toFixed(2) + '×'], ['Profondeur de couleur', screen.colorDepth + ' bits'], ['Points tactiles max.', String(navigator.maxTouchPoints || 0)], ['Fréquence mesurée', perfData ? perfData.hz + ' Hz' : 'lancez le test Performance']]],
+    ['Matériel', [['Cœurs logiques', String(navigator.hardwareConcurrency || '?')], ['Mémoire (arrondie)', navigator.deviceMemory ? '≈ ' + navigator.deviceMemory + ' Go' : 'non exposée'], ['GPU', gpu ? gpu.renderer : 'WebGL indisponible'], ['Quota navigateur', est ? (est.quota / 1e9).toFixed(1) + ' Go' : 'inconnu']]],
+    ['Système', [['Langue', navigator.language], ['Fuseau', Intl.DateTimeFormat().resolvedOptions().timeZone], ['Mode installé', matchMedia('(display-mode: standalone)').matches ? 'oui' : 'non'], ['Contexte sécurisé', secure ? 'oui (HTTPS ou localhost)' : 'non : caméra, micro et capteurs bloqués']]]
+  ];
+}
+function apiMatrix() {
+  const md = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  return [['Caméra et micro', md && secure], ['Batterie', !!navigator.getBattery], ['Vibration', !!navigator.vibrate], ['Capteurs de mouvement', 'DeviceMotionEvent' in window], ['Géolocalisation', !!navigator.geolocation],
+    ['Bluetooth (Web Bluetooth)', !!navigator.bluetooth], ['NFC (Web NFC)', 'NDEFReader' in window], ['Biométrie (WebAuthn)', !!window.PublicKeyCredential], ['Veille écran bloquée', !!navigator.wakeLock], ['Partage natif', !!navigator.share]];
+}
+
+/* ---------- vues ---------- */
+function pill(st) { return `<span class="pill ${st || ''}">${st ? STATUS[st] : 'À tester'}</span>`; }
+function viewHome() {
+  const s = summary(), pending = TESTS.filter(t => !results[t.id] || results[t.id].status === 'skip').length;
+  const issues = TESTS.filter(t => results[t.id] && (results[t.id].status === 'fail' || results[t.id].status === 'warn')).sort((a, b) => (results[a.id].status === 'fail' ? 0 : 1) - (results[b.id].status === 'fail' ? 0 : 1));
+  const col = s.grade ? colorOf(s.grade.cls) : 'var(--muted)';
+  return `
+  <section class="card hero">${gauge(s.score, s.grade)}
+    <div class="meta"><div><h1>${s.grade ? esc(s.grade.label) : 'Diagnostic de votre téléphone'}</h1></div>
+    <p>${s.score === null ? `${s.tot} contrôles : écran, tactile, audio, caméras, batterie, capteurs, réseau et performance. Comptez environ 8 minutes.` : `${s.done} contrôle${s.done > 1 ? 's' : ''} sur ${s.tot} réalisé${s.done > 1 ? 's' : ''}.${s.capped ? ' Un composant clé est défaillant : la note est plafonnée à 74.' : ''}`}</p>
+    <div class="btn-row"><button class="btn primary" data-act="run-all">${icon('play')} ${s.score === null ? 'Diagnostic complet' : 'Tout relancer'}</button>
+    ${s.score !== null && pending ? `<button class="btn" data-act="run-missing">Compléter (${pending})</button>` : ''}</div></div>
+  </section>
+  ${secure ? '' : `<div class="banner">${icon('warn')}<div><b>Contexte non sécurisé.</b> La caméra, le micro, les capteurs et la batterie sont bloqués par Chrome sur cette adresse. Ouvrez DiagPhone en HTTPS (GitHub Pages) ou via <span class="mono">http://localhost</span> (voir l’onglet Appareil).</div></div>`}
+  ${issues.length ? `<section class="sect"><h2>À regarder en priorité</h2><div class="rows">${issues.map(t => `<button class="row" data-act="open:${t.id}"><span class="ic">${icon(t.icon)}</span><span class="tx"><b>${esc(t.title)}</b><span>${esc(results[t.id].detail)}</span></span>${pill(results[t.id].status)}</button>`).join('')}</div></section>` : ''}
+  <section class="sect"><h2>Par famille</h2><div class="tiles">${CATS.map(cat => {
+    const ts = TESTS.filter(t => t.cat === cat.id), done = ts.filter(t => results[t.id] && results[t.id].status !== 'skip').length;
+    return `<button class="tile" data-act="cat:${cat.id}">${icon(ts[0].icon)}<b>${esc(cat.name)}</b><div class="dots">${ts.map(t => `<i class="dot ${results[t.id] ? results[t.id].status : ''}"></i>`).join('')}</div><small>${done} sur ${ts.length} testé${done > 1 ? 's' : ''}</small></button>`;
+  }).join('')}</div></section>`;
+}
+function viewTests() {
+  const list = TESTS.filter(t => filterCat === 'all' || t.cat === filterCat);
+  return `<section class="sect"><div class="chips" role="group" aria-label="Filtrer par famille"><button class="chipbtn" aria-pressed="${filterCat === 'all'}" data-act="cat:all">Tout</button>${CATS.map(c => `<button class="chipbtn" aria-pressed="${filterCat === c.id}" data-act="cat:${c.id}">${esc(c.name)}</button>`).join('')}</div>
+  <div class="rows">${list.map(t => { const r = results[t.id]; return `<button class="row" data-act="open:${t.id}"><span class="ic">${icon(t.icon)}</span><span class="tx"><b>${esc(t.title)}</b><span>${r ? esc(r.detail) : 'Pas encore testé'}</span></span>${pill(r && r.status)}</button>`; }).join('')}</div></section>`;
+}
+function reportText() {
+  const s = summary(), d = new Date();
+  const lines = ['DIAGPHONE · Rapport de diagnostic', 'Date : ' + d.toLocaleString('fr-FR'), 'Appareil : ' + (info ? info[0][1][0][1] : 'inconnu') + ' · écran ' + screen.width + '×' + screen.height,
+    'Note de santé : ' + (s.score === null ? 'non calculée' : s.score + '/100 (' + s.grade.label + ')') + ' · ' + s.done + '/' + s.tot + ' contrôles', ''];
+  for (const t of TESTS) { const r = results[t.id]; lines.push((r ? { pass: '[OK]  ', warn: '[ALERTE]', fail: '[PANNE]', skip: '[----] ' }[r.status] : '[----] ') + ' ' + t.title + ' : ' + (r ? r.detail : 'non testé')); }
+  lines.push('', 'Limites : IMEI, capacité réelle de la batterie, boutons physiques, haut-parleur d’appel et capteur de proximité ne sont pas lisibles depuis un navigateur.');
+  return lines.join('\n');
+}
+function spark(hist) {
+  if (hist.length < 2) return '';
+  const w = 300, hh = 64, pts = hist.map((x, i) => [i / (hist.length - 1) * (w - 12) + 6, hh - 8 - x.score / 100 * (hh - 16)]);
+  return `<svg class="spark" viewBox="0 0 ${w} ${hh}" role="img" aria-label="Évolution de la note"><polyline fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linejoin="round" points="${pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}"/>${pts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="var(--accent)"/>`).join('')}</svg>`;
+}
+function viewReport() {
+  const s = summary(), hist = store.get('history', []);
+  return `<h2 class="sheet-title">DiagPhone · Fiche d’état</h2>
+  <section class="card hero">${gauge(s.score, s.grade, 150)}<div class="meta"><h1>${s.grade ? esc(s.grade.label) : 'Aucun résultat'}</h1><p>${s.score === null ? 'Lancez au moins un test pour générer un rapport.' : `Rapport du ${new Date().toLocaleDateString('fr-FR')}. Les tests non réalisés ne comptent pas dans la note, mais réduisent la couverture : ${s.done}/${s.tot}.`}</p></div></section>
+  <section class="sect"><div class="rows">${TESTS.map(t => { const r = results[t.id]; return `<div class="row"><span class="ic">${icon(t.icon)}</span><span class="tx"><b>${esc(t.title)}</b><span>${r ? esc(r.detail) : 'Non testé'}</span></span>${pill(r && r.status)}</div>`; }).join('')}</div></section>
+  <section class="sect noprint"><h2>Exporter</h2><div class="btn-row"><button class="btn" data-act="copy-report">Copier</button><button class="btn" data-act="dl-txt">Texte</button><button class="btn" data-act="dl-json">JSON</button><button class="btn" data-act="share">Partager</button><button class="btn" data-act="print">Imprimer / PDF</button></div></section>
+  <section class="sect noprint"><h2>Suivi dans le temps</h2><div class="card">${hist.length ? spark(hist) + `<div class="kv" style="margin-top:12px">${hist.slice(-5).reverse().map(x => `<div><span class="k">${new Date(x.ts).toLocaleDateString('fr-FR')} ${new Date(x.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span><span class="v">${x.score}/100 · ${x.done} tests</span></div>`).join('')}</div>` : '<p class="muted">Enregistrez ce diagnostic pour suivre l’évolution de la note après chaque mise à jour ou chute.</p>'}
+    <div class="btn-row" style="margin-top:12px"><button class="btn primary" data-act="save-hist" ${s.score === null ? 'disabled' : ''}>Enregistrer ce diagnostic</button><button class="btn ghost" data-act="reset">Effacer les résultats</button></div></div></section>`;
+}
+function viewDevice() {
+  const codes = [['*#06#', 'Affiche l’IMEI. À comparer avec la boîte et l’étiquette avant tout achat d’occasion.'], ['*#*#4636#*#*', 'Infos téléphone, réseau et statistiques d’usage (selon la marque).'], ['*#0*#', 'Menu de test matériel sur de nombreux Samsung.']];
+  return `<section class="sect"><h2>Votre appareil</h2><div id="infoBox" class="sect">${info ? infoHtml() : '<div class="note">Lecture des informations…</div>'}</div></section>
+  <section class="sect"><h2>Ce que le navigateur peut tester ici</h2><div class="kv">${apiMatrix().map(([k, v]) => `<div><span class="k">${esc(k)}</span><span class="v ${v ? 'pass' : 'warn'}">${v ? 'disponible' : 'indisponible'}</span></div>`).join('')}</div></section>
+  <section class="sect"><h2>Hors de portée du navigateur</h2><div class="card"><p class="muted">IMEI, capacité réelle et usure de la batterie, boutons de volume et d’alimentation, haut-parleur d’appel, capteur de proximité. Ces codes composés dans l’application Téléphone complètent le diagnostic :</p></div>
+  <div class="codes">${codes.map(([c, d]) => `<div class="code"><div><code>${esc(c)}</code><span>${esc(d)}</span></div><button class="btn small" data-act="copy:${esc(c)}">Copier</button></div>`).join('')}</div></section>
+  <section class="sect"><h2>Utiliser DiagPhone sur le téléphone</h2><div class="card"><p>Chrome bloque caméra, micro et capteurs hors HTTPS. Deux solutions : publier ce dossier sur GitHub Pages, ou lancer un serveur local sous Termux avec <span class="mono">python -m http.server 8080</span> puis ouvrir <span class="mono">http://localhost:8080</span>. Une fois ouvert, le menu de Chrome propose « Installer l’application ».</p>
+  ${deferredInstall ? '<div class="btn-row" style="margin-top:12px"><button class="btn primary" data-act="install">Installer DiagPhone</button></div>' : ''}</div></section>`;
+}
+function infoHtml() { return info.map(([t, rows]) => `<div><h3 class="sub" style="margin-bottom:8px">${esc(t)}</h3><div class="kv">${rows.map(([k, v]) => `<div><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join('')}</div></div>`).join(''); }
+
+const NAV = [['home', 'Accueil', 'home'], ['tests', 'Tests', 'list'], ['report', 'Rapport', 'report'], ['device', 'Appareil', 'info']];
+function render() {
+  $('#nav').innerHTML = NAV.map(([id, l, ic]) => `<button data-act="nav:${id}" ${view === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${l}</span></button>`).join('');
+  $('#view').innerHTML = { home: viewHome, tests: viewTests, report: viewReport, device: viewDevice }[view]();
+  const mode = store.get('theme', 'auto'); $('#themeBtn').innerHTML = icon(mode === 'dark' ? 'moon' : mode === 'light' ? 'sun' : 'auto');
+  $('#themeBtn').setAttribute('aria-label', 'Thème : ' + { auto: 'automatique', dark: 'sombre', light: 'clair' }[mode]);
+  if (view === 'device' && !info) gatherInfo().then(r => { info = r; if (view === 'device') $('#infoBox').innerHTML = infoHtml(); });
+}
+function applyTheme() {
+  const mode = store.get('theme', 'auto'), root = document.documentElement;
+  if (mode === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', mode);
+  const dark = mode === 'dark' || (mode === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  $('meta[name="theme-color"]').setAttribute('content', dark ? '#0A1315' : '#EEF3F3');
+}
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const [act, arg] = [el.dataset.act.split(':')[0], el.dataset.act.split(':').slice(1).join(':')];
+  switch (act) {
+    case 'nav': view = arg; window.scrollTo(0, 0); render(); break;
+    case 'cat': filterCat = arg; view = 'tests'; render(); break;
+    case 'open': startTest(arg); break;
+    case 'run-all': runSequence(false); break;
+    case 'run-missing': runSequence(true); break;
+    case 'theme': { const o = ['auto', 'dark', 'light'], cur = store.get('theme', 'auto'); store.set('theme', o[(o.indexOf(cur) + 1) % 3]); applyTheme(); render(); break; }
+    case 'copy': copyText(arg); break;
+    case 'copy-report': copyText(reportText()); break;
+    case 'dl-txt': download('diagphone-rapport.txt', reportText()); break;
+    case 'dl-json': download('diagphone-rapport.json', JSON.stringify({ date: new Date().toISOString(), resume: summary(), resultats: results, appareil: info }, null, 2), 'application/json'); break;
+    case 'share': if (navigator.share) navigator.share({ title: 'Rapport DiagPhone', text: reportText() }).catch(() => {}); else copyText(reportText()); break;
+    case 'print': window.print(); break;
+    case 'save-hist': { const s = summary(), hist = store.get('history', []); hist.push({ ts: Date.now(), score: s.score, done: s.done }); store.set('history', hist.slice(-30)); toast('Diagnostic enregistré'); render(); break; }
+    case 'reset': results = {}; store.set('results', results); toast('Résultats effacés'); render(); break;
+    case 'install': deferredInstall.prompt(); deferredInstall = null; render(); break;
+  }
+});
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; if (view === 'device') render(); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+applyTheme(); render();
+</script>
+</body>
+</html>
